@@ -1,0 +1,1101 @@
+---
+title: "DSD Skills Matrix Analysis"
+author: "Capabilities Subgroup"
+date: "2017"
+output:
+  rmdformats::readthedown:
+    code_folding: hide
+    self_contained: true
+    thumbnails: false
+    lightbox: false
+---
+
+# Why have we created this report?
+ 
+Recognising that DSD's strategic goals out to 2021 require a mix of new skillsets and strong experience, the objective of the Capabilities Group is to develop a framework for building the division's future
+capability requirements to support the delivery of these goals.   Our required skillsets will need to be responsive to changes in technology and the analytical tools available to enable the delivery of 
+efficient high volume data processes. Skillsets also need to respond to the Bank's wider institutional change and V2020 objectives.  To this end, some of our skills requirements could come from a low base 
+of knowledge and expertise and our work needs to reflect ways to increase capability and retention of skills quickly whilst also recognising the tight financial environment faced by the Bank and DSD at 
+this time.  
+
+# Business questions
+
+This report addresses the following questions:
+
+1. Who sent us their skills matrix?
+2. DSD - What is our distribution of skills per grade, group teams and each skill?
+3. What number of DSD staff have critial skills, and what is the current level (score)?
+4. What is the distribution of skills for data science, economics, statistical methods and programming?
+5. How are our self-management skills?
+6. What are the most demanded skills for the future, and at what level (score)?
+
+It is mainly intended to be our first pass at understanding the DSD datasets. 
+
+
+```{r userdefined, include=TRUE}
+
+rm(list=ls())
+
+# 1. The raw data was stored in ./SkillsMatrix/,
+# 2. it was processed with DataProcessing.R and # stored in ./SkillsMatrix/ProcessedData/
+# 3. the code has both options: process or load processed data
+# inputs
+
+folderRawData="N:/DATA/Cross Divisional Work/SkillsMatrix/"
+folderProcessedData="N:/DATA/Cross Divisional Work/SkillsMatrix/ProcessedData/"
+
+loadProcessedData=TRUE
+processedDataDate="2018-06-19"
+
+```
+
+```{r setup, include=FALSE}
+
+
+# Libraries
+library("rmdformats")
+library("tidyverse")
+library("readxl")
+library("scales")
+library("formattable")
+library("plotly")
+library("treemap")
+library(readr)
+library(dplyr)
+library(widyr)
+library(ggplot2)
+library(igraph)
+library(units)
+library(ggraph)
+library(visNetwork)
+library(igraph,quietly = T)
+
+
+## Global options
+show.code=FALSE
+options(max.print = "75")
+knitr::opts_chunk$set(echo = TRUE,
+	             cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE )
+knitr::opts_knit$set(width = 75)
+
+
+### ------ Functions to clean and summarise data
+
+# this function gets data from processed folder or process data
+getData<-function(loadProcessedData, folderRawData, folderProcessedData,processedDataDate){
+
+if(!loadProcessedData){  
+
+# load raw data
+file.list <- list.files(path = folderRawData, pattern='*.xlsx|*.XLSX',recursive = TRUE,full.names = TRUE)
+df.list <- lapply(file.list, read_excel, sheet=2,col_types = "text")
+
+## add name of folder
+attr(df.list, "names") <- file.list
+names(df.list) <- file.list
+df.list <-
+  mapply(`[<-`, df.list, 'TeamFolder', value = names(df.list), SIMPLIFY = FALSE)
+
+
+## add ramdom identifier
+names(df.list) <- 1:length(file.list)
+rawData <- bind_rows(df.list, .id = "id")[,1:7]
+
+
+## clean names
+colnames(rawData) = c("ID","Scale","High.Level.Cat","Specific.Skill","Rank.Now","Rank.Future","TeamFolder")
+
+
+## clean scales
+rawData<-filter(rawData, !is.na(Scale))
+
+## clean groups
+rawData<- rawData %>% mutate(Team=unlist(lapply(strsplit(TeamFolder, split = "/"),'[[',6)))
+
+
+## add new groups
+Team=c("RDG", "MCG", "FSG", "DST", "BDCG", "DCT","DMT","OCT_DSDCentral_CA")
+Group.Class=c("Datasets Subject Matter Expertise","Datasets Subject Matter Expertise","Datasets Subject Matter Expertise",
+            "Data & Tech Expertise","Data & Tech Expertise",
+            "Bankwide Advisory","Bankwide Advisory",
+            "Central DST")
+labelsGroups<-data.frame (Team, Group.Class)
+
+rawData<- rawData %>% mutate(Group.Class = labelsGroups$Group.Class[match(Team, labelsGroups$Team)])
+
+
+
+## make the values numeric
+labels<-c("Not applicable (0)"=0, "Basic (1)"=1 , "Good (2)"=2, "High (3)"=3 , "Expert (4)"=4)    
+rawData<- rawData %>% mutate(Rank.Now.Num = labels[Rank.Now],
+                             Rank.Future.Num = labels[Rank.Future])
+
+
+
+  
+## add extra variables
+rawData<- rawData %>% 
+  mutate(Gap=Rank.Now.Num-Rank.Future.Num) %>% 
+  mutate(Gap2=Gap*Gap) %>% 
+  mutate(CreditSkill=Gap>0,
+         DebitSkill=Gap<0)
+
+  # save them in the N drive 
+  processedData=rawData
+  save(processedData, file=paste0(folderProcessedData,"ProcessedData_", Sys.Date(),".Rda"))
+
+} else{
+
+  # load processed data
+  load(paste0("N:/DATA/Cross Divisional Work/SkillsMatrix/ProcessedData/ProcessedData_",processedDataDate,".Rda"))
+  }  
+processedData
+
+}
+
+# this function sumarises the data before plotting
+makeDataPlot <-  function(mytable,grouping,filter0Now=FALSE, filter0Future=FALSE){
+
+# if needed filter out 0    
+if (filter0Now) filter(mytable, Rank.Future.Num>0)
+if (filter0Future) filter(mytable, Rank.Future.Future>0)
+    
+# aggregate    
+summarySt <- mytable %>%
+          group_by_(.dots=grouping) %>%
+          mutate(nPeople = n_distinct(ID)) %>% 
+          ungroup()
+
+summarySt <- summarySt %>%       
+            mutate(CreditSkillNum=ifelse(CreditSkill, Gap,NA),
+                   DebitSkillNum=ifelse(DebitSkill, Gap,NA)) %>%    
+            group_by_(.dots = c(   grouping, "nPeople")) %>% 
+          dplyr::summarise(
+          meanGap = round(mean(Gap, na.rm = T), 2),
+          #meanGap2 = round(mean(Gap2, na.rm = T), 2), 
+          meanGapC = round(mean(CreditSkillNum, na.rm = T), 2),
+          meanGapD = round(mean(DebitSkillNum, na.rm = T), 2),
+          AbsGap = round(sum(Gap < 0, na.rm = T)/sum(Rank.Future.Num > 0,na.rm = T) *100),
+          Mean_Future = round(mean(Rank.Future.Num, na.rm = T),2))
+}
+
+makeDataPlot_count <-  function(mytable,grouping,filter0Now=FALSE, filter0Future=FALSE){
+
+# if needed filter out 0    
+if (filter0Now) filter(mytable, Rank.Future.Num>0)
+if (filter0Future) filter(mytable, Rank.Future.Future>0)
+    
+# aggregate    
+summarySt <- mytable %>%
+          group_by_(.dots=grouping) %>%
+          mutate(nDim = n()) %>% 
+          ungroup()
+
+summarySt <- summarySt %>%          
+            group_by_(.dots = c(   grouping, "nDim")) %>% 
+          dplyr::summarise(
+          Total = sum(Rank.Now.Num > 0, na.rm = T),
+          Average_Score = round(mean(Rank.Now.Num, na.rm = T),2))
+}
+```
+
+```{r data, include=FALSE}
+
+# get data from processed folder or process data
+processedData<-getData(loadProcessedData,folderRawData, folderProcessedData,processedDataDate)
+
+# make sure they have the correct number
+table(processedData$ID)
+
+# people we have to chase
+table(processedData$Team, processedData$Scale)
+
+# get some general numbers
+nScales=length(unique(processedData$Scale))
+nTotalMat=length(unique(processedData$ID))
+nGroups=length(unique(processedData$Group.Class))
+
+
+```
+
+  
+# Who sent us their skills Matrix? {.tabset}
+
+We have `r nTotalMat` skills matrices over  `r nGroups` general groups and  `r nScales` scales.
+
+
+## Distribution per Groups of Teams
+
+In light of the structural blueprint designs, the following map was applied to the current team structure:
+
+1. Datasets SME Expertise:  MCG, FSG, RDG
+2. Data & Tech Expertise: BDCG, DST
+3. Bankwide Advisory: DMT, DCT
+4. Central DST: OCT, Central, C&A
+
+
+```{r dataGroup, include=TRUE, warning=FALSE, message=FALSE}
+
+summarySt<-processedData %>% 
+  group_by(Group.Class) %>% 
+  summarise(NGroup=round(n_distinct(ID),2),
+  NPer=round(n_distinct(ID)/nTotalMat*100,2))
+                                                                  
+formattable(summarySt %>%  arrange(desc(NGroup)),
+              list(NPer = color_bar("lightpink")))
+                  
+
+```
+
+## Distribution per Scale
+
+```{r dataScale, include=TRUE, warning=FALSE, message=FALSE}
+
+summarySt<-processedData %>% 
+  group_by(Scale) %>% 
+  summarise(NScale=round(n_distinct(ID),2),
+  NPer=round(n_distinct(ID)/nTotalMat*100,2))
+                                                                  
+formattable(summarySt %>%  arrange(desc(NScale)),
+              list( NPer = color_bar("lightpink")))
+      
+
+```
+
+
+## Distribution per Team & Scale
+
+```{r dataTeam, include=TRUE, warning=FALSE, message=FALSE}
+
+summarySt<-processedData %>% 
+  group_by(Team, Scale) %>% 
+  summarise(NTeam=round(n_distinct(ID),2),
+  NPer=round(n_distinct(ID)/nTotalMat*100,2))
+                                                                  
+formattable(summarySt, list( NPer = color_bar("lightpink")))
+      
+
+```
+
+# Distribution of Skills {.tabset}
+
+The following metrics have been used at each stage of the skills gap analysis:
+
+1. MeanGap: Mean([Rank Now]- [Rank Future])
+<!-- 2. MeanGap2: Mean(Gap*Gap) -->
+2. MeanGapC: Mean([Rank Now]- [Rank Future]) Credit for positive gaps (we have an oversupply of this skill, so we should redistribute or refine)
+3. MeanGapD: Mean([Rank Now]- [Rank Future]) Debit for negative gaps (we have a skills gap identified for the future so we need to upskill + develop)
+4. Absolute Gap (%): Total number of individuals with a gap/Total number of individuals needed to have this skill as a percentage 
+5. Mean future: The average future skill level required
+
+*_Note - All skills ranked on a 0 (not applicable) - 4 (expert) scale. All mean measures are on a 0-4 point scale, whilst metric AbsGap is measured as a %_*
+
+It is worth considering the metrics together rather than in isolation. For example, the mean gap tells you how far on average people are above(+ve) or below(-ve) the future skill requirement, whilst the absolute gap gives you the number of people with a skill gap as a percentage of the total number of people required to have that skill, and the mean future score tells you the level at which people expect to be at for the future. Together these metrics give you a clearer picture of the distributional properties of the data. 
+
+* Mean gap (Credit) - this is only calculated for those who have a positive skill gap, ie a surplus. 
+* Mean gap (Debit) - this is only calculated for those who have a negative skill gap, ie a deficit.
+
+These two metrics combined give an insight into the distributional properties of the data, for example, if one person reports a positive gap of 3, and three people report a negative gap of -1, the mean gap is 0.; however the mean gap (Debit) is -1, identifying that there are still people needing to upskill in this area, although the mean gap does not suggest this. 
+
+The following levels of disaggregation have been applied;
+
+1. Skills gaps identified by **_Group Class & High level skill category _**
+2. Skills gaps by Specific **_Skills & High level skill category_**
+3. Skills gap identified by **_Scale & High level skill category_**
+
+## Disaggregated by Group Team 
+
+```{r dataGroups, include=TRUE, warning=FALSE, message=FALSE}
+
+summarySt<-makeDataPlot(processedData,grouping=c("Group.Class","High.Level.Cat"))
+
+formattable(summarySt %>%  arrange(-desc(meanGap)),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   meanGapD = color_bar("lightpink"),
+                   meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+p <- ggplot(summarySt, aes(Group.Class, High.Level.Cat)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+          scale_fill_gradient(low = "darkred", high = "white") +
+          theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(p)
+
+
+
+```
+
+## Disaggregated by Specific Skill
+```{r dataSkills, include=TRUE, warning=FALSE, message=FALSE}
+
+
+summarySt<-makeDataPlot(processedData,grouping=c("Specific.Skill", "High.Level.Cat"))
+
+formattable(summarySt %>%  arrange(-desc(meanGap)),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   meanGapD = color_bar("lightpink"),
+                   meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+summarySt<-makeDataPlot(processedData,grouping=c("Group.Class", "Specific.Skill"))
+p <- ggplot(summarySt, aes(Group.Class, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+            scale_fill_gradient(low = "darkred", high = "white") 
+ggplotly(p)
+
+            
+```
+
+## Disaggregated by Scale
+```{r dataScales, include=TRUE, warning=FALSE, message=FALSE}
+
+summarySt<-makeDataPlot(processedData,grouping=c("Scale", "High.Level.Cat"))
+
+formattable(summarySt %>%  arrange(-desc(meanGap)),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                meanGapD = color_bar("lightpink"),
+                   meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+p <- ggplot(summarySt, aes(Scale, High.Level.Cat)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+          scale_fill_gradient(low = "darkred", high = "white") +
+          theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(p)
+
+```
+
+# Breakdown by acedemic subject areas {.tabset}
+
+The following tabs represent the following;
+
+1. A breakdown of skills for academic subjects including Statistics, Data science, Economics, Mathematics, Data Management, Data Engineering and Accountancy by *_Scale_*          
+2. A breakdown of skills for academic subjects relating to Statistics, Data science, Economics, Mathematics, Data Management and Accountancy by *_Group Class_*
+
+As above, the gap metrics remain the same as the skills gap analysis paper. 
+
+## Academic Subjects - by Scale
+
+```{r dataByScale, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Scale", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ))
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+summarySt<-makeDataPlot(processedData,grouping=c("Scale", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ))
+p <- ggplot(summarySt, aes(Scale, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+          scale_fill_gradient(low = "darkred", high = "white") +
+          theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1))
+ggplotly(p)
+```
+
+The largest skill gaps lie within data science and statistical methods, notably for scales GP, H, G, E and I. Note that the future skill score is only >2 for scale GP respondents, suggesting that they feel they need to be highly skilled in this area for the future. There are present skill gaps for data engineering and data management, which are two highly demanded skills within DSD; however the future scores are low relative to other technical specialist areas. The skill gaps for data engineering are most present for scales C/D, F and G, which may be more dependent on this skill. Currently there are 2 "highly skilled" (skill score of 3-4) data engineers in DSD, both at scale E. We are becoming increasingly dependent on data engineering, as a consequence the increasing number of data points we process each period and the complexity of the taxonomies (e.g. SII and Basel IV), therefore this is an area that needs support.  
+
+There is a relatively small, but consistent skill gap for accountancy across all scales, which is most present at scale I (-0.33). Note that the future skill score for accountancy is generally low (average future score of 0.82, compared to 1.51 for data science). This suggests that there is a need to have a basic understanding in this area and it has applications within DSD, however people don't feel the necessity to be experts in order to do their roles. Currently there are just two "highly skilled" accountants in DSD, which may be a gap that needs addressing. 
+
+There is a small skill gap for data management across a number of scales, which is most prominent for scale H, G and C/D. The average future skill score for data management is just 0.35, which is very low relative to other technical specialist areas. It is likely that this is driven by the fact, in general, only DMT/DCT will need to be highly skilled in this area. When disaggregating by group team, data & tech expertise has a future skill score of 0.57, whilst datasets SME had a skill gap of 0.27 (which is more highly weighted due to the number of staff). The skill gap for this specialism is therefore fairly localised in the division, and may need addressing differently from wider training/development programs. Currently there are 3 "highly skilled" data management specialists in the division, across a scales G, E and H, 
+
+There appears to be a surplus of skills in mathematics and economics across all scales, possibly reflecting the recruitment strategy of the Bank/DSD (e.g. > 60% of 2017/18 graduates were from and economics or mathematics degree backgrounds). The exception is for scale J/JP/K, of which there is a gap for -0.33. Due to the surplus of skills 'in house', staff at these scales could benefit from their peers and be encouraged to ask questions.
+
+## Academic Subjects - by Group
+
+```{r dataByGroup, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Group.Class", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ))
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+summarySt<-makeDataPlot(processedData,grouping=c("Group.Class", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ))
+p <- ggplot(summarySt, aes(Group.Class, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+          scale_fill_gradient(low = "darkred", high = "white") +
+          theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1))
+ggplotly(p)
+```
+
+Datasets SME Group:
+
+When disaggregating the data by group team, the most significant gap lies with data science (-1.05), which has a significantly higher future skill score of 2.00. Note that 56% of respondents sit within datasets SME, and 77% (AbsGap) of them feel they have a skill gap in data science; however 27 people within this group team said they need to be "highly skilled" (future score of 3 or 4) in this area, which may be an over estimate of the future requirements. 
+
+Central DST:
+
+Again, the largest gap is data science (-0.5) for 86% of respondents. Central DST contains small gaps for accountancy, data engineering, data management and statistical methods, however these are not material (all -0.06) and future skill scores in these areas are low. 
+
+Data & Tech Expertise:
+
+Here the largest skill gap in data engineering (-0.29), followed by data science (-0.21). Note these group teams are fairly small (14 people); however they are heavily dependent on these skills to carry out their functions effectively. Future skills scores are fairly high at 1.4 for these technical specialisms. 
+
+Bank wide Advisory:
+
+There are few overall skills gaps for this group, with data engineering and data management ranking highest (-0.04); however the future skill scores are relatively low, suggesting people do not feel the need to be experts in these areas, but do need to upskill nonetheless.
+
+# Breakdown by acedemic subject areas - By Current Team Structure {.tabset}
+
+A heamap of the dsitribution of skills gaps, measures scross specific academic subjects and current team structures.
+
+```{r dataheatmap, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                             "Economics", 
+                                                                                                             "Statistical methods", 
+                                                                                                             "Mathematics", 
+                                                                                                             "Data Management (DCAM,DAMA)",
+                                                                                                             "Accountancy", 
+                                                                                                             "Data Engineering"
+))
+
+
+p <- ggplot(summarySt, aes(Team, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+  scale_y_discrete(expand = c(0, 0)) + 
+  scale_fill_gradient(low = "darkred", high = "white") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1))
+ggplotly(p)
+```
+
+##RDG
+
+```{r dataRDG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "RDG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+
+
+```
+
+Across the 27 respondents, the largest skills gap for RDG is within data science (-1.19), which also has the largest mean future score of 2.48 (good to advanced skilled) across all technical specialists. There are smaller skills gaps across data engineering (-0.56), data management (-0.44) and statistical methods (-0.52). The skills gap in data engineering is likely to be driven by RDGs dependency on complex data stores (BSM, IBI) and the need to understand SQL/MDX and other data querying languages. There is a small surplus of skills in mathematics & economics specialisms.
+
+```{r dataRDG2, include=TRUE, warning=FALSE, message=FALSE}
+
+generate_network_plot("RDG")
+
+
+```
+
+##MCG
+
+```{r dataMCG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "MCG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+
+```
+
+Across the 28 respondents, the largest skill gap for MCG is within data science (-1.44), which also has the largest mean future score of 2.19 across all technical specialists. There are smaller skills gaps across statistical methods (-0.52), data engineering (-0.04) and economics (-0.19). There is a small surplus of skills in mathematics specialisms. The skills gap in economics is likely to be driven by the analytical requirements for MCGs regular statistical outputs.
+
+```{r dataMCG2, include=TRUE, warning=FALSE, message=FALSE}
+
+generate_network_plot("MCG")
+
+
+```
+
+##FSG
+
+```{r dataFSG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "FSG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+Across the 19 respondents, the largest skill gap for FSG is within accountancy (-0.37), which has the largest mean future score of 1.11 across all technical specialists. There is also a skill gap within data science (-0.32). There is a surplus of skills in economics (+0.32) and mathematics (+0.21) specialisms
+
+```{r dataFSG2, include=TRUE, warning=FALSE, message=FALSE}
+
+generate_network_plot("FSG")
+
+
+```
+
+##DMT
+
+```{r dataDMT, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "DMT")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+##DCT
+
+```{r dataDCT, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "DCT")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+##BDCG
+
+```{r dataBDCG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "BDCG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+generate_network_plot("BDCG")
+```
+
+##OCT_DSDCentral_CA
+
+```{r dataOCT, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Data science", 
+                                                                                                              "Economics", 
+                                                                                                              "Statistical methods", 
+                                                                                                              "Mathematics", 
+                                                                                                              "Data Management (DCAM,DAMA)",
+                                                                                                              "Accountancy", 
+                                                                                                              "Data Engineering"
+                                                                                                              ), Team %in% "OCT_DSDCentral_CA")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+# Breakdown by analytical tools {.tabset}
+
+The following tabs represent the following;
+
+1. A breakdown of skills for academic subjects including Programming tools for analysis, Data science, Programming tools for product development, Visualisation tools, Econometric tools Excel by *_Scale_*          
+2. A breakdown of skills for academic subjects including Programming tools for analysis, Data science, Programming tools for product development, Visualisation tools, Econometric tools Excel by*_Group Class_*
+
+## Programming Tools - by Scale
+
+```{r dataProgram1, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Scale", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ))
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+summarySt<-makeDataPlot(processedData,grouping=c("Scale", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ))
+p <- ggplot(summarySt, aes(Scale, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+          scale_fill_gradient(low = "darkred", high = "white") +
+          theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1))
+ggplotly(p)
+
+```
+
+# Breakdown by acedemic subject areas - By Current Team Structure {.tabset}
+
+A heamap of the dsitribution of skills gaps, measures scross specific academic subjects and current team structures.
+
+```{r dataheatmap, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+))
+
+
+p <- ggplot(summarySt, aes(Team, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+  scale_y_discrete(expand = c(0, 0)) + 
+  scale_fill_gradient(low = "darkred", high = "white") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1))
+ggplotly(p)
+```
+
+##RDG
+
+```{r dataRDG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "RDG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+
+
+```
+
+Across the 27 respondents, the largest skills gap for RDG is within data science (-1.19), which also has the largest mean future score of 2.48 (good to advanced skilled) across all technical specialists. There are smaller skills gaps across data engineering (-0.56), data management (-0.44) and statistical methods (-0.52). The skills gap in data engineering is likely to be driven by RDGs dependency on complex data stores (BSM, IBI) and the need to understand SQL/MDX and other data querying languages. There is a small surplus of skills in mathematics & economics specialisms.
+
+```{r dataRDG2, include=TRUE, warning=FALSE, message=FALSE}
+
+generate_network_plot("RDG")
+
+
+```
+
+##MCG
+
+```{r dataMCG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "MCG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+
+```
+
+Across the 28 respondents, the largest skill gap for MCG is within data science (-1.44), which also has the largest mean future score of 2.19 across all technical specialists. There are smaller skills gaps across statistical methods (-0.52), data engineering (-0.04) and economics (-0.19). There is a small surplus of skills in mathematics specialisms. The skills gap in economics is likely to be driven by the analytical requirements for MCGs regular statistical outputs.
+
+```{r dataMCG2, include=TRUE, warning=FALSE, message=FALSE}
+
+generate_network_plot("MCG")
+
+
+```
+
+##FSG
+
+```{r dataFSG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "FSG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+Across the 19 respondents, the largest skill gap for FSG is within accountancy (-0.37), which has the largest mean future score of 1.11 across all technical specialists. There is also a skill gap within data science (-0.32). There is a surplus of skills in economics (+0.32) and mathematics (+0.21) specialisms
+
+```{r dataFSG2, include=TRUE, warning=FALSE, message=FALSE}
+
+generate_network_plot("FSG")
+
+
+```
+
+##DMT
+
+```{r dataDMT, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "DMT")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+##DCT
+
+```{r dataDCT, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "DCT")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+##BDCG
+
+```{r dataBDCG, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "BDCG")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+generate_network_plot("BDCG")
+```
+
+##OCT_DSDCentral_CA
+
+```{r dataOCT, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Team", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Programming tools for analysis (R, Python, Matlab)" , 
+                                                                                                              "Programming tools for product development (R, Python, Matlab, Shiny)", 
+                                                                                                              "Visualisation tools (Excel, tableau, power BI, SSRS)", 
+                                                                                                              "Database query tools (SQL type tools , NoSQL, MDx, SSAS)", 
+                                                                                                              "Econometric tools (Eviews, Stata, X13, etc)",
+                                                                                                              "Excel"
+                                                                                                              ), Team %in% "OCT_DSDCentral_CA")
+
+formattable(summarySt %>%  arrange(Specific.Skill, -desc(meanGap)) %>% filter(meanGap != 0),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   #meanGapD = color_bar("lightpink"),
+                   #meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+```
+
+
+
+# Management {.tabset}
+
+## Self Management
+As part of the DSD redesign, we are moving towards a self management world. It is important to capture peoples perception of their self-management skills at this stage, and where they believe they need to be. The following shows the self management skill, disaggregated by scale. 
+
+
+```{r dataSM, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Scale", "Specific.Skill")) %>% filter(Specific.Skill %in% c("Self-management"))
+
+formattable(summarySt %>%  arrange(-desc(meanGap)),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   meanGapD = color_bar("lightpink"),
+                   meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+```
+
+## All Management 
+
+Below represents the skills gap for all management functions captures in the survey. All managment functions have a present skills gap, with self-management, coaching and mentoring and performance evaluation ranking highest in terms of the mean gap. 
+
+```{r dataManagement, include=TRUE, warning=FALSE, message=FALSE}
+summarySt<-makeDataPlot(processedData,grouping=c("Specific.Skill", "High.Level.Cat")) %>% filter(High.Level.Cat %in% c("Management"))
+
+formattable(summarySt %>%  arrange(-desc(meanGap)),
+            
+              list(meanGap = color_tile("lightpink", "lightgreen"),
+                   meanGapD = color_bar("lightpink"),
+                   meanGapC = color_bar("lightgreen"),
+                   AbsGap = color_tile("lightgreen", "lightpink"),
+                   Mean_Future = color_bar("lightblue")))
+
+summarySt<-makeDataPlot(processedData,grouping=c("Specific.Skill", "Scale", "High.Level.Cat")) %>% filter(High.Level.Cat %in% c("Management"))
+p <- ggplot(summarySt, aes(Scale, Specific.Skill)) + geom_tile(aes(fill = meanGap), colour = "white") + 
+          scale_y_discrete(expand = c(0, 0)) + 
+          scale_fill_gradient(low = "darkred", high = "white") +
+          theme(axis.text.x = element_text(angle = 90, hjust = 1), axis.text.y = element_text(angle = 45, hjust = 1, size = 6))
+ggplotly(p)
+```
+
+
+# Future skills requirements 
+
+### Future skill scores
+As part of the capabilities group, identifying future skills requirements is a key part of our remit, as well as highlighting any present skill gaps. Below represents the 30 most demanded skills for future in the division in terms of average future skill score, by specific skill & high level category. 
+
+```{r dataFuture, include=TRUE, warning=FALSE, message=FALSE}
+grouping = c("Specific.Skill","High.Level.Cat")
+summarySt <- processedData %>%
+  group_by_(.dots=grouping) %>%
+  mutate(nDim = n()) %>% 
+  ungroup()
+
+summarySt <- summarySt %>%          
+  group_by_(.dots = c(   grouping, "nDim")) %>% 
+  dplyr::summarise(
+    Total = sum(Rank.Future.Num > 0, na.rm = T),
+    Average_Future_Score = round(mean(Rank.Future.Num, na.rm = T),2)) %>%  
+    arrange(desc(Average_Future_Score))
+
+formattable(head(summarySt, 30) ,
+            
+            list(Total =color_bar("lightgreen"),
+                 Average_Future_Score = color_bar("lightblue")))
+```
+
+In order to meet future skills requirements across differnt technical and subject matter expertise, it is useful to know how many highly skilled individuals (high 3 - expert 4) there are across the key functions. This gives a clearer picture of how much we need to invest in upskilling, how much of this can be done 'in-house' and how much additional resource is requried. Below represents a summary table of the number of highly skilled individuals there are in the division across each category of SME and technical specialists. 
+
+### Current vs Future technical specialists and SME 
+```{r dataExperts, include=TRUE, warning=FALSE, message=FALSE}
+
+grouping = c("Group.Class", "Specific.Skill", "High.Level.Cat")
+summarySt <- processedData %>%
+  group_by_(.dots=grouping) %>%
+  mutate(nDim = n()) %>% 
+  ungroup()
+
+summarySt <- summarySt %>%          
+  group_by_(.dots = c(   grouping, "nDim")) %>% 
+  dplyr::summarise(
+    Current_3...4 = sum(Rank.Now.Num %in% c(3,4), na.rm = T),
+    Future_3...4 = sum(Rank.Future.Num %in% c(3,4), na.rm = T)) %>%  
+    arrange(desc(Future_3...4))  %>% 
+    filter(High.Level.Cat %in% c("Technical specialists", "Subject matter experts"),  Future_3...4 > 1, Current_3...4 > 1) 
+
+formattable(summarySt ,
+            
+            list(Current_3...4 =color_bar("lightgreen"),
+                 Future_3...4 = color_bar("lightblue")))
+
+group= summarySt$Specific.Skill
+Future_3...4 = summarySt$Future_3...4
+data= data.frame(group,Future_3...4)
+
+
+# treemap
+treemap(data,
+        index="group",
+        vSize="Future_3...4",
+        type="index", palette="Reds",
+        border.col ="black",
+        fontsize.labels = 9,
+        title.legend="")
+```
+
+# Network Analysis 
+
+The following diagram represents the relationship strength between different skills, measured by the correlation between reported skills within the matrix. Only edges with a skills correlation of great than 0.2 are shown. The width of the edge demonstrates a stronger relationship between skills. At the top corner there is an option to toggle skills, and look at the relationship between them at a lower level. 
+
+The network diagram below provides a useful insight into the relationship between different skills. Notice that individuals, who rated themselves for economics, have a weak link to data science, data engineering and data management. On the other hand, individuals who rate themselves in statistical methods, have a much stronger link data science, data engineering and data management, which are areas we are looking to upskill and develop. The same is true for mathematics, but not to the same extent as statistical methods. 
+```{r, include=FALSE, warning=FALSE, message=FALSE}
+
+# DJB: I adjusted this to pass SkillName as first argument - then we see top pairs by frequency
+UserSkills <- processedData %>%
+  dplyr:: filter(Rank.Now.Num != 0, High.Level.Cat %in% "Technical specialists") 
+######################################
+# frequently repoted skills 
+frequentSkills = UserSkills %>%
+  dplyr:: filter(Specific.Skill != "Bank policy  (e.g. data policies, disclosures)") %>%
+  group_by(Specific.Skill) %>%
+  filter(n() >= 5)
+
+#frequentSkills %>% count(Specific.Skill)
+
+word_cors <- frequentSkills %>%
+  pairwise_cor(Specific.Skill, ID, sort = TRUE)
+word_cors
+
+######################################
+
+######################################
+
+nodes = frequentSkills %>% plyr:: count("Specific.Skill")
+
+edges = word_cors
+
+nodesWithConnections = nodes %>% 
+  filter(Specific.Skill %in% union(edges$item1,edges$item2))
+
+g = graph_from_data_frame(edges,directed = T,vertices = nodesWithConnections)
+g
+
+v = toVisNetworkData(g)
+v$nodes
+v$edges
+# take square root so size distribution isn't totally dominated by Ninjas!
+v$edges$value = v$edges$correlation * 3
+
+
+
+```
+
+```{r dataNetork, include=TRUE, warning=FALSE, message=FALSE, echo= FALSE}
+
+
+visNetwork(v$nodes,v$edges,height = "1000px", width = "1200px") %>% 
+  visIgraphLayout(layout = "layout_with_fr",grid="nogrid") %>% 
+  visPhysics(stabilization = F) %>% 
+  visEdges(smooth = F) %>% 
+  visNodes(scaling = list(min=20,max=70),
+           font = list(size = 24)) %>% 
+  visOptions(nodesIdSelection = TRUE,collapse = TRUE, highlightNearest = T) %>% 
+  visInteraction(navigationButtons = TRUE) %>%
+  visInteraction(tooltipStyle = 'position: fixed;visibility:hidden;padding: 5px;white-space: wrap;
+                 font-family: helvetica;font-size:14px;font-color:black;background-color: white;')
+
+```
+
+
+
