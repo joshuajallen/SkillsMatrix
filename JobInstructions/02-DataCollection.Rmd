@@ -1,0 +1,41 @@
+---
+title: "Data Collection""
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    code_folding: show
+    thumbnails: true
+    gallery: true
+    fig_width: 10
+    fig_height: 8
+    df_print: kable
+---
+
+```{r setupTrans, include=FALSE}
+
+## Global options
+options(max.print = "75")
+knitr::opts_chunk$set(echo = TRUE,
+	             cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE, 
+	             fig.width=10, fig.height=8)
+knitr::opts_knit$set(width = 100, highr.opts = 75, self.contained = TRUE)
+
+```
+
+# Data Collection {#collection}
+
+Once the skills taxonomy has been created following the guidelines highlighted in section [Taxonomy](#taxonomy), it is time to collect the respondent data. Taxonomies should be circulated to the respondent population, and responders should be asked to complete the form independently. The scores are then to be reviewed in billaterals with line managers, who should help mediate the responses whilst ensuring consistency of the current and future state scores across their line reports. DSD opted for a compulsory completion policy to ensure complete coverage across the business. This helps ensure two things;
+
+* Helps create a rich dataset with total coverage, with no data gaps or lost information 
+* It also helps ensure that movements over time are less driven by changes in reporting populations and can be explained by skill developments (or skill regression) across different functions
+
+## Saving the reports 
+
+All respondent profile information is included in the survey, such as team, scale and role. Therefore there is no requirement on the naming conventions of the files; however for future use or identification it is possible to do so if necessary. In the case of DSD, all reports are submitted anonymously and are deleted after the data has been compiled. It is recommended that responders saving the files in their staff folder in FileSite for future reference.
+
+Files are to be saved locally on a share drives (e.g. NAS drive), from which all returns are swept into one processed data file. 

@@ -1,0 +1,309 @@
+---
+title: "Data Compilation"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    code_folding: show
+    thumbnails: true
+    gallery: true
+    fig_width: 10
+    fig_height: 8
+    df_print: kable
+---
+
+```{r setupTab, include=FALSE}
+
+## Global options
+options(max.print = "75")
+knitr::opts_chunk$set(echo = TRUE,
+	             cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE, 
+	             fig.width=10, fig.height=8)
+knitr::opts_knit$set(width = 100, highr.opts = 75, self.contained = TRUE)
+
+```
+
+# Data Compilation 
+
+This will be the business users first interaction with R, which is the software used for compiling and processing the raw data files. All code needed to compile the data can be found in this document; however if you would like to access the entire script please visit [getData.R](https://almplatform/tfs/UnmanagedCollection/Shared%20Analytical%20Code/_git/SkillsMatrix?path=%2FDataProcessing%2FgetData.R&version=GBmaster&_a=contents&editMode=true). 
+
+## Step 1 {#step1}
+
+Once all the data has been submitted by the respondent s and stored in the relevant location (with or without folder or file naming conventions), the data can be compiled and tidied into a **.csv** file using the following function;
+
+```{r , echo=TRUE, message=FALSE, warning=FALSE, eval=FALSE}
+
+#' @title Compile and cleanse skills matrix data
+#'
+#' @description Creates and write formatted data table containing all skills reports in from a user defined folder
+#'
+#' @param folderRawData File path stating where the raw data is stored (e.g. NAS drive)
+#'
+#' @param folderProcessedData File path stating where the processed data file is to be written to 
+#'
+#' @param loadProcessedData logical input for loading exisiting processed data file, default = FALSE
+#'
+#' @param processedDataDate date processed data file was generated if above paramater = TRUE
+#'
+#' @param Year the current year of processing 
+
+#' @return Export of processed data and a .R data file 
+#'
+#' @examples
+#'
+#' getData()
+#'
+#' @export
+#'
+#' @import dplyr
+
+
+getData<-function(
+  folderRawData="N:/DATA/Cross Divisional Work/SkillsMatrix",
+  folderProcessedData="N:/DATA/Cross Divisional Work/SkillsMatrix/ProcessedData/",
+  loadProcessedData=FALSE,
+  processedDataDate="2019-07-09", 
+  Year = "2019"){
+  
+  require(readxl)
+  require(dplyr)
+  
+  if(!loadProcessedData){  
+    
+    # load raw data
+    file.list <- list.files(path = folderRawData, pattern='*.xlsx|*.XLSX',recursive = TRUE,full.names = TRUE)
+    df.list <- lapply(file.list, read_excel, sheet=2,col_types = "text")
+    
+    ## add name of folder
+    attr(df.list, "names") <- file.list
+    names(df.list) <- file.list
+    df.list <-
+      mapply(`[<-`, df.list, 'TeamFolder', value = names(df.list), SIMPLIFY = FALSE)
+    
+    
+    ## add ramdom identifier
+    names(df.list) <- 1:length(file.list)
+    rawData <- dplyr:: bind_rows(df.list, .id = "id")[,1:10]
+    
+    
+    ## clean names
+    colnames(rawData) = c("ID","Scale","Role", "Team", "High.Level.Cat","Specific.Skill","Rank.Now","Rank.Future","Additional.information","TeamFolder")
+    
+    
+    ## clean scales
+    rawData<- dplyr:: filter(rawData, !is.na(Scale))
+    
+    ## make the values numeric
+    labels<-c("Not applicable (0)"=0, "Basic (1)"=1 , "Good (2)"=2, "High (3)"=3 , "Expert (4)"=4)    
+    rawData<- rawData %>% \n
+      dplyr:: mutate(Rank.Now.Num = labels[Rank.Now],
+                     Rank.Future.Num = labels[Rank.Future])
+    
+    
+    
+    
+    ## add extra variables
+    rawData<- rawData %>% \n
+      dplyr:: mutate(Gap=Rank.Now.Num-Rank.Future.Num) %>% \n
+      dplyr:: mutate(Year = Year)
+    
+    # save them in the N drive 
+    processedData=rawData
+    save(processedData, file=paste0(folderProcessedData,"ProcessedData_", Sys.Date(),".Rda"))
+    
+  } else{
+    
+    # load processed data
+    load(paste0("N:/DATA/Cross Divisional Work/SkillsMatrix/ProcessedData/ProcessedData_",processedDataDate,".Rda"))
+  }  
+  
+  processedData
+  
+}
+
+
+
+```
+
+The parameters used in the `getData()` function can be interpreted as follows;
+
+1. `folderRawData` File path stating where the raw data is stored (e.g. NAS drive)
+2. `folderProcessedData` File path stating where the processed data file is to be written to 
+3. `loadProcessedData` Logical input for loading existing processed data file, default = FALSE
+4. `processedDataDate` The date processed data file was generated if above parameter = TRUE
+5. `Year` The current year of processing, e.g. `2019`
+
+In simple terms, this function reads all files with **.xlsx** extension in the `folderRawData`folder, compiles them into one tidy data frame and writes it back to the `folderProcessedData` folder as an **.Rdata** file. 
+
+## Step 2 {#step2}
+
+Once data has been compiled and tidied using in the `getData()` function, it is time to clean the data using the `CleanSkillsData()` function show below. 
+
+```{r , echo=TRUE, message=FALSE, warning=FALSE, eval=FALSE}
+
+#' @title Clean skills matrix data
+#'
+#' @description Cleanses the skills matrix data generated by the getData() function 
+#'
+#' @param DF tidyr data frame generated by the getData() function 
+#'
+#' @return Tidy data frame, cleansed to have all the relevant column headings and skill definitions 
+#'
+#' @examples
+#'
+#' processedData2019 <- getData()
+#' CleanSkillsData(DF = processedData2019)
+#' 
+#' @export
+#'
+#' @import dplyr
+
+CleanSkillsData <- function(DF){
+  
+  cols <- c("ID","Scale","High.Level.Cat","Specific.Skill","Rank.Now","Rank.Future","Team","Rank.Now.Num","Rank.Future.Num","Gap","Year")
+  
+  ColumnTest <- all(cols %in% colnames(DF))
+
+  if(ColumnTest == TRUE){
+    
+    CleanDT <- DF %>% \n
+      dplyr:: mutate(Specific.Skill = recode(Specific.Skill, 
+                                             "Visualisation tools (Excel, tableau, power BI, SSRS)" =  "Tableau", 
+                                             "Database query tools (SQL type tools , NoSQL, MDx, SSAS)" = "Database query tools (SQL)", 
+                                             "Bank collaboration tools: Sharepoint, Collaborate, My Service"= "My Service", 
+                                             "Project Management (scoping, task setting, development follow-up, budget)" = "Project Management", 
+                                             "Data Preparation (e.g. Virtual, Imputation, Anonimization)" = "Data Preparation", 
+                                             "Structured thinking (e.g. business process opt, taxonomy)" = "Structured thinking", 
+                                             "Programming tools for analysis (R, Python, Matlab)" = "Programming tools for analysis (R)", 
+                                             "Programming tools for product development (R, Python, Matlab, Shiny)" = "Programming tools for product development (R, Shiny)", 
+                                             "Programming notebooks (Jupyter notebooks, R markdown)" = "Programming notebooks (R markdown)", 
+                                             "Version control (git)" = "Version control (git, TFS)", 
+                                             "Office tools: \nPowerpoint\nAccess\nWord" = "Office tools (microsoft)", 
+                                             "Office tools: \r\nPowerpoint\r\nAccess\r\nWord" = "Office tools (microsoft)", 
+                                             "Coaching" = "Coaching and Mentoring",
+                                             "Mentoring" = "Coaching and Mentoring",
+                                             "RWM" = "CRM/RWM", 
+                                             "PRA supervisory process: insurance" = "PRA supervisory process: Insurance")) %>% \n
+      dplyr:: mutate(High.Level.Cat = if_else(Specific.Skill %in% c("Data Analysis: Exploration", 
+                                                                    "Data Analysis: Modelling", 
+                                                                    "Data Ownership & Stewardship (advisory)", 
+                                                                    "Data Preparation", 
+                                                                    "Data Preparation (e.g. Manipulation, Aggregation)", 
+                                                                    "Data Publishing/Sharing", 
+                                                                    "Data Quality (Plausie)"), "Data Analysis and Preperation", High.Level.Cat)) %>% \n
+      dplyr:: mutate(Scale = recode(Scale, "Industrial placement" = "Scale IP/JP/J/K")) %>% \n
+      dplyr:: mutate(Scale = recode(Scale, "Scale J/JP/K" = "Scale IP/JP/J/K")) %>% \n
+      dplyr:: mutate(Scale = recode(Scale, "Scale J" = "Scale IP/JP/J/K")) %>% \n
+      dplyr:: mutate(Scale = recode(Scale, "Scale IP/JP/K" = "Scale IP/JP/J/K")) %>% \n
+      dplyr:: mutate(Team = recode(Team, "OCT_DSDCentral_CA" = "DSDCentral")) %>% \n
+      dplyr:: mutate(High.Level.Cat = recode(High.Level.Cat, "Analytical" = "Analytical tools")) %>% \n
+      dplyr:: select(cols) %>% \n
+      dplyr:: mutate(Year = as.character(Year), 
+                     ID = as.character(ID))
+    
+  } else{
+    
+    CleanDT = NULL
+  }
+  
+  
+  return( CleanDT)
+  
+  
+}
+
+```
+
+In simple terms, this function checks the relevant column headings exist (**NOTE**: this should be the same for all skills matrix datasets) and recodes some of the data items to ensure consistency of naming conventions (DSD specific). The function may need to be modified depending on the business user and the list of skills that has been populated. The most important action of this function is the checking of column headings, if they do not exist or are not named correctly then the application will fail downstream. 
+
+Once the data has been compiled and cleansed, it can be used within the R shiny application, which is discussed in the next chapter.
+
+## Tabulation 
+
+All functions used for transforming, tidying and aggregating data can be found here [HelperFunsShiny.R](https://almplatform/tfs/UnmanagedCollection/Shared%20Analytical%20Code/_git/SkillsMatrix?path=%2FScripts%2FhelperFunsShiny.R&version=GBmaster&_a=contents). 
+
+The Data Tabulation phases provides model tables that set forth the key aggregates and metrics to be used in the skills matrix dashboard. Each section of the report has an associated Data Tabulation Plan, e.g. stock of individuals across each skill, by skill level. 
+
+The aggregated data are presented for population subgroups such as high level category, scale or team. Data is aggregated at the lowest level for every permutation of subgroup characteristics as selected by the user. An example of this can be seen below;
+
+```{r , echo=TRUE, message=FALSE, warning=FALSE, eval=FALSE}
+
+#' @title Aggregate skills data across population subgroups
+#'
+#' @description Created aggregated data table for stock count of individuals in a user defined population subgroup 
+#'
+#' @param mytable  Tidy data frame, cleansed to have all the relevant column headings and skill definitions 
+#'
+#' @param grouping Population charactertics to aggregate over, e.g. Scale or Team 
+#'
+#' @param SelectYear Select year of data collection
+#' 
+#' @return Aggregated data table acorss selected population charactertics
+#'
+#' @examples
+#'
+#' grouping=c("Specific.Skill", "High.Level.Cat", "Rank.Now")
+#' makeStockDT(mytable = SkillsDF, grouping = grouping, SelectYear = "2019")
+#'
+#' @import dplyr
+
+makeStockDT <-  function(mytable, grouping, SelectYear, SelectHighCat = FALSE, SelectScale=FALSE, SelectTeam=FALSE, filter0Now=FALSE, filter0Future=FALSE){
+  
+  # if needed filter out 0    
+  if(filter0Now == TRUE){mytable <- dplyr:: filter(mytable, Rank.Now.Num != 0)}
+  if(filter0Future == TRUE){mytable <- dplyr:: filter(mytable, Rank.Future.Num != 0)}
+  if(SelectScale[1] !=FALSE){mytable <- dplyr:: filter(mytable, Scale %in% SelectScale)}
+  if(SelectTeam[1] != FALSE){mytable <- dplyr:: filter(mytable, Team %in% SelectTeam)}
+  if(SelectHighCat[1] != FALSE){mytable <- dplyr:: filter(mytable, High.Level.Cat %in% SelectHighCat)}
+  
+  mytable <- mytable %>% \n
+    dplyr:: filter(Year %in% c(SelectYear)) 
+  
+  if(nrow(mytable) > 1){
+  
+  inputKey <- rlang:: sym(dplyr::last(grouping))
+  
+  Total <- mytable %>% \n
+    dplyr:: group_by(.dots=grouping[-length(grouping)]) %>% \n
+    dplyr:: tally() %>% \n
+    dplyr:: rename("Total" = "n")
+  
+  inputKey <- rlang:: sym(dplyr::last(grouping))
+  # aggregate  
+  summarySt <- mytable %>%   \n
+    dplyr:: filter(Year %in% c(SelectYear)) %>% \n
+    group_by(.dots = c(grouping)) %>% \n
+    dplyr:: tally() %>% \n
+    dplyr:: rename("Count" = "n") %>% \n
+    tidyr:: spread(key = !! inputKey, value = Count) %>% \n
+    dplyr:: ungroup() %>% \n
+    dplyr:: mutate_if(is.numeric, list(~ replace(., is.na(.), 0))) %>% \n
+    dplyr:: inner_join(Total, by = grouping[-length(grouping)])
+
+  cols <- colnames(summarySt)[which(!colnames(summarySt) %in% c("Basic (1)",  "Good (2)", "High (3)", "Expert (4)", "Total"))]
+  
+  summarySt <- summarySt %>% \n
+    dplyr:: select(cols, contains("Basic (1)"), contains("Good (2)"), contains("High (3)"), contains("Expert (4)" ), contains("Total"))
+
+  
+  } else {
+    
+    summarySt = NULL
+
+  }
+  
+  
+  return(summarySt)
+  
+}
+
+
+
+```
+
+Don't worry if you are not familiar with R, all of the coding is executed in the background of the application. The only prerequisite is to have the tidy skills data as outlined in steps [Number 1](#step1) and [Number 2](#step2). Please go to the next section for more details on the skills dashboard. 
+

@@ -1,0 +1,55 @@
+---
+title: "Further Comments"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    code_folding: show
+    thumbnails: true
+    gallery: true
+    fig_width: 10
+    fig_height: 8
+    df_print: kable
+---
+```{r setupComments, include=FALSE}
+
+## Global options
+options(max.print = "75")
+knitr::opts_chunk$set(echo = TRUE,
+	             cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE )
+knitr::opts_knit$set(width = 100, highr.opts = 75, self.contained = TRUE)
+
+```
+
+# Further Comments {#extensions}
+
+## Tidy Data, and Minimum Viable Data 
+
+> What is the simplest representation of the data possible?
+
+Prior to any analysis we must "tidy" our data sources i.e. manipulate its structure to best facilitate the outputs we want from it. One principle of tidy datasets is that they are easy to manipulate, represent and visualize, and have a specific structure: each variable is a column and each observation is a row. 
+
+Once the data is structurally sound, another dimension to consider is what observations need to be kept to produce your outputs in the least wasteful way i.e. what is the *minimum viable dataset* for assembling the necessary outputs?
+
+As you work through the application, it is worth noting down what variables you would need to produce each table or figure. Ideally there would be one dataset that could represent all of this, in a tidy format that can be used throughout the process. Tidy data princicples have been applied to the skills matrix data collection. 
+
+## Quality assurance and testing 
+
+This is one of the areas that will differ from user to user. Each user will have different skills, definitions and populations. Therefore the quality assurance and cleansing of the data needs to be defined accordingly. It is very easy and effective to institute tests for the consistency of the data at the time the data is extracted. It is also a good opportunity to check for potential errors or inconsistencies in the data. Then, it is possible to flag these to the user and ensure that the pipeline can recover from such errors, or they can be directed to the user for quality assurance purposes. When microdata are aggregated and cross-tabulated in different ways by varying characteristics, it is possible to see errors that have not been visible before. For instance, when looking at the data over time, or comparing results with those in of other related aggregates, many errors may become visible when performing checks.
+
+This is a semi-automated process so the user should check the Checks and ensure they meet the criteria for when they would be conducted manually. If a new check or test becomes necessary, then it should be implemented by changing the code. This can be done inside the pipeline; however it also possible to implement tests outside of the pipeline, for things like checkings of the raw or aggregated figures. 
+
+Checks are applied to many stages of the pipeline, checking for consistent formatting, structure and contents of the data. Similarly tests can be applied to check for errors in producing charts, missing data and potential outliers in the series. 
+
+## Anonymization of the data 
+
+The anonymization of the data was a decision taken by DSD to ensure staff were comfortable submitting personal data. A decision was taken that no data would be used for performance review purposes, and no individual could be identified in the aggregated dataset. 
+
+## Data Privacy 
+
+Our full data privacy notice can be found here [Data Privacy](http://intranet/Banknav/IML.asp?svr=BOE-DMS&db=Analytical&id=8030975&v=1). Any business area undertaking a skills survey should ensure they collect data in a responsible manner that is GDPR compliant, they data should be governed and stored responsibly. 
+

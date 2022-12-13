@@ -1,0 +1,101 @@
+--- 
+title: "Skills Matrix User Guide"
+author: "Joshua Allen & Jenny Dawuda"
+date: "`r Sys.Date()`"
+knit: "bookdown::render_book"
+site: bookdown::bookdown_site
+output: bookdown::gitbook
+documentclass: book
+bibliography: [book.bib, packages.bib]
+biblio-style: apalike
+link-citations: yes
+github-repo: rstudio/bookdown-demo
+description: "This is the report of the data collection and compilation production pipeline for the skills matrix"
+cover-image: images/cover.png
+always_allow_html: yes
+---
+
+# Background 
+
+The Data and Statistics division (DSD) embarked on a divisional effort to redesign the business area, ranging from our culture, our business processes to management skills. The Capabilities group focussed their work in three areas: skills, recruitment and retention (career paths). The app that you see today is the result of this work stream, supporting our management of capability needs across the division. We will develop our skills by combining breadth of knowledge with deep expertise in one or more areas to enable our adaptability and agility. Our learning culture, and focus on realising our potential, will also enable us to grow, personally and organisationally, fuelled by ideas and innovation, and learning and experimentation.
+We had a few things going for us that made this possible:
+
+* We have moved to a flexible project pool approach in DSD, which allows people to work on ideas they think might be interesting;
+* The Data Programme has delivered a Shiny Server that makes it possible to build and share apps easily in a self-service way. We have also RADaR, which is a single tool for easier discovery of analytical reports and dashboard from across the Bank;
+* We had vision 2020 encouraging us to do this type of reflection on better decision making and to experiment under the 'fast fail' prerogative.
+
+# Prerequisites 
+
+This user guide outlines the process for the data collection and compilation of the skills matrix data for DSD, with generic guidance for other business areas. This document explains the data compilation workflow, from the taxonomy design to the verified output (VO) and is broken down into the following sections;
+
+* Taxonomy design
+* Data collection and storage 
+* Data compilation 
+* Skills dashboard
+
+The **SkillsMatrix** requires the prerequisites described below.
+
+1) R & R Studio, installed from the [software catalogue](http://sccm-wl-mgt-01/CMApplicationCatalog)
+
+2) The following packages:
+
+```{r , echo=TRUE, message=FALSE, warning=FALSE, eval=FALSE}
+#' @description Setup your work environment
+#'
+#' @details This function allows you set-up your work enviroment.
+
+#' @keywords packages 
+
+#' @example 
+#' packagesSetup()
+#'
+packagesSetup<-function(){
+  
+  #Install these packages before use
+list.of.packages <- c("stringr","lubridate","tidyr","dplyr","data.table", "zoo","readr","tibble","plyr","reshape2","tidyverse", "ggplot2", "ggthemes")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) utils::install.packages(new.packages)
+
+  library("stringr")
+  library("lubridate")
+  library("plyr")
+  library("data.table")
+  library("tidyr")
+  library("reshape2")
+  library("readxl")
+  library("dplyr")
+  library("zoo")
+  library("tidyverse")
+  library("ggplot2")
+  library("ggthemes")
+  library("readr")
+  library("tibble")
+
+}
+
+packagesSetup()
+
+```
+
+3) Access to the R shiny server, which can be raised via an ITSD request with the following details;
+
+```{r , echo=TRUE, message=FALSE, warning=FALSE}
+
+# Please assign this ticket to "SVC_Desktop Support" team. NIS Domain: boe
+# UID: <User personal number>
+# Login Shell: /bin/bash           
+# Home Directory: /home/<User personal number>
+# Primary group name/GID: gg_mgt_dummy_GID 
+
+
+```
+
+Project organisation (inputs):
+
+1. All the R scripts are stored and version controlled in TFS under [SkillsMatrix](https://almplatform/tfs/UnmanagedCollection/Shared%20Analytical%20Code/_git/SkillsMatrix)
+2. The 2018 Skills taxonomy can be accessed via FileSite here [SkillsTaxonomy2018](http://intranet/Banknav/IML.asp?svr=BOE-DMS&db=Analytical&id=8067398&v=1)
+3. The 2019 Skills taxonomy can be accessed via FileSite here [SkillsTaxonomy2019](http://intranet/Banknav/IML.asp?svr=BOE-DMS&db=Analytical&id=8067399&v=1)
+
+Project organisation (outputs - DSD only):
+
+1. The Verified Output (VO) data processed since 2018 for DSD is in **.csv** form, which is exported to the folder with the following location: **N:/DATA/Cross Divisional Work/SkillsMatrix/ProcessedData**

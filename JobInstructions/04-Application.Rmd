@@ -1,0 +1,142 @@
+---
+title: "Skills Dashboard"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    code_folding: show
+    thumbnails: true
+    gallery: true
+    fig_width: 10
+    fig_height: 8
+    df_print: kable
+---
+```{r setupDashboard, include=FALSE}
+
+## Global options
+options(max.print = "75")
+knitr::opts_chunk$set(echo = TRUE,
+	             cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE )
+knitr::opts_knit$set(width = 100, highr.opts = 75, self.contained = TRUE)
+
+```
+
+# Skills Dashboard
+
+The Skills Matrix: A way of understanding the skills composition of the business and managing future needs. Collecting the data is only part of the work, the real value is in the data and the story it tells. The application was you see today is DSDs solution for harnessing the skills data, supporting our management of capability needs across the division.
+
+The application can be access via the following link
+<br />
+<u> [Skills Dashboard](https://radar/reports/12491) </u>
+
+Details on the functionality of the application and the interpretation of the metrics is given below. 
+
+## Get Data tab
+
+This App will allow you to gain insights to the skills and business needs of the division/business area, such as;
+
+* How many people have Tableau skills, and at what level?
+* What the biggest skill gaps across DSD, by scale or by business area?
+* How have skill levels, needs and expectations changed on a temporal basis?
+
+To start please follow the instructions below.
+
+<hr/>
+
+### Loading the skills matrix from a .csv file
+
+Firstly, ensure you have a .csv file stored locally, that has been cleansed and is appropriate for use within this app. Before uploading the CSV please ensure that any private information that you do not want analysed has been removed from the data. To upload your Skills Data, click the 'Load Skills Matrix data' button and select the CSV file you want to upload to the tool. Ensure that the notification pops up, stating that the data has been loading successfully.
+
+### To Load data from source file
+
+**WARNING: DSD only** \n 
+
+To upload the Skills Data from a processed data file, click the 'Load processed data file' button and wait for the data to load. Ensure that the notification pops up, stating that the data has been loading successfully. 
+
+<hr/>
+
+The two tables at the bottom show the respondent population statistics, broken down by team and scale for the reporting periods in the sample.
+
+## Skills Stock Take
+
+This tab allows you to explore the skill distribution of the business area, primarily looking at the count of individuals and their current/future state skill level. Please follow the instructions below:
+
+1. Select the Required inputs on the left-hand side. The options available are high level skill category (upper level of skills hierarchy, e.g. soft or analytical skills), of which you can choose multiple categories if desired. You will also need to select a year, the latest year is selected as default.
+2. Select the Optional inputs on the right-hand side. The options available are scale and team, choices will feed into the table/chart below. Multiple teams, scales or combination of the two can be selected;
+3. The chart/table shows the count of individuals, by the grouping selected in the required/optional inputs
+4. The data can be exported (copy to clipboard or to Excel) using the buttons provided in the table
+
+<hr/> 
+
+The now vs future table shows a quick cross comparison of counts for current/expected skill, by the user defined grouping
+
+1. Select the Required inputs on the left-hand side. The options available are high level skill category (upper level of skills hierarchy, e.g. soft or analytical skills), of which you can choose multiple categories if desired.
+2. Select the Optional inputs on the right-hand side. The options available are scale and tam choices will feed into the table/chart below. Multiple teams, scales or combination of the two can be selected;
+3. The chart/table shows the count of individuals, by the grouping selected in the required/optional inputs
+4. The data can be exported (copy to clipboard or to Excel) using the buttons provided in the table
+
+## Skills GAP Analysis
+
+This tab shows the results from the skills gap analysis, which calculated the difference between the current and future scores for a given user defined grouping. The metrics in the tables can be interpreted as follows:
+
+* Count - number of people in the population selected
+* Mean gap - is the average difference between the current and future scores across the selected population, a negative gap means that the current score is less than the future score
+* Abs gap (%) - is the % of people with a gap, of the population shown in the 'Count' column?
+* Mean future - is the average future score, indicating the level of the skill category
+
+This tab allows you to explore the skill gaps of the business area by looking at the difference in current/future state skill level. Please follow the instructions below:
+
+1. Select the Required inputs on the left-hand side. The options available are high level skill category (upper level of skills hierarchy, e.g. soft or analytical skills), of which you can choose multiple categories if desired. You will also need to select a year, the latest year is selected as default.
+2. Select the Optional inputs on the right-hand side. The options available are scale and team, choices will feed into the table/chart below. Multiple teams, scales or combination of the two can be selected;
+3. The chart/table shows the count of individuals, by the grouping selected in the required/optional inputs
+4. The data can be exported (copy to clipboard or to Excel) using the buttons provided in the table
+
+
+## Skills Temporal Analysis
+
+This tab shows a temporal summary of the results collected over the sample years and aims to answer the following questions;
+1. How have the average current state scores evolved?
+2. How has the future state changed over the sample periods?
+3. What skill gaps have narrowed, and which have widened?
+
+This tab allows you to explore the skill evolution over time, including current and future state scores. Please follow the instructions below;
+
+1. Select the Required inputs on the left-hand side. The options available are high level skill category (upper level of skills hierarchy, e.g. soft or analytical skills), of which you can choose multiple categories if desired.
+2. Select the Optional inputs on the right-hand side. The options available are scale and team, choices will feed into the table/chart below. Multiple teams, scales or combination of the two can be selected;
+3. The chart/table shows the count of individuals, by the grouping selected in the required/optional inputs
+4. The data can be exported (copy to clipboard or to Excel) using the buttons provided in the table
+
+## Drilldown
+
+This tab allows for a more detailed analysis of skills Please follow the instructions below:
+
+### Skill Level Analysis
+
+1. Select the Required inputs on the left-hand side. The options available are skill (lower level of skills hierarchy, e.g. Excel), you will also need to select a year. Note that the latest year is selected as default.
+
+* The table shows the summary metrics for the chosen skill, such as the average current and future scores
+* The density curve shows the distribution of current and future state score for the chosen skill/year
+* The bar charts show the reported counts of the chosen skill at each level
+
+### Data Science
+
+**WARNING: DSD only** \n 
+
+1. Select the Required inputs on the left-hand side. The options available are year and the latest year is selected as default.
+
+* The table shows the summary metrics for the chosen skill, such as the average current scores, future scores and skill gaps
+* The diverging lollipop chart shows the reported skill gaps
+
+### Network Analysis
+
+1. Select the Required inputs on the left-hand side. The options available are skill category (higher level of skills hierarchy, e.g. Systems)
+* The network diagram below shows the strength of relationship between reported skills, by category. The thicker to edge, the stronger the relationship.
+
+
+
+
+

@@ -1,0 +1,90 @@
+---
+title: "Taxonomy Design"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    code_folding: show
+    thumbnails: true
+    gallery: true
+    fig_width: 10
+    fig_height: 8
+    df_print: kable
+---
+
+```{r setupData, include=FALSE}
+
+## Global options
+options(max.print = "75")
+knitr::opts_chunk$set(echo = TRUE,
+	             cache = FALSE,
+               prompt = FALSE,
+               tidy = TRUE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE, 
+	             fig.width=10, fig.height=8)
+knitr::opts_knit$set(width = 100, highr.opts = 75, self.contained = TRUE)
+
+```
+
+# Taxonomy Design {#taxonomy}
+
+The skills matrix taxonomy provides the framework for the data in a collection. The skills taxonomy for DSD can be found here [SkillsTaxonomy2019](http://intranet/Banknav/IML.asp?svr=BOE-DMS&db=Analytical&id=8067399&v=1) and provides the basis for all information used in the survey. The taxonomy consists of three sections including;
+
+* **README** tab - The landing page of the survey containing all the relevant information needed to complete the survey consistently
+* **Survey** tab - Arguably the most important tab to ensure consistency of the data collection and compilation for use downstream 
+* **Further comments** tab - Optional text box for user feedback and additional commentary 
+* **Lists** tab - This tab is hidden on dissemination, which includes the lists to populate the user profile fields, such as scale, role and team 
+
+## README  
+
+This tab can be adapted by the user to suit the business need and definitions can be (re)defined. The **README** tab acts as a landing page for the respondent, and includes the following;
+
+* Personal information - to be populated by the respondent, such as information on their scale or role 
+* Purpose of the survey and background - to be defined by the business user
+* What to do, including scoring reference guide 
+* Skill rating definitions 
+* Further guidance, such as saving the completed file 
+
+### Personal information
+
+This is the only section of the **README** tab that the respondent should populate. The information in the drop downs is fed from the **lists** tab, which is hidden on dissemination. These lists should be updated to reflect the relevant scales, teams and roles in the business area undetaking the collection. 
+
+### Definitions
+
+To ensure consistency amongst respondents, skill definitions should be well thought out and clearly defined. The scoring reference (0 - 4) should be kept constant; however the definitions of each skill level are subject to change depending on the business user.  
+ 
+### Saving the files
+
+Details on saving the completed file should be well set out as this will impact the data compilation and cleansing process downstream. All files should be saved locally (e.g. NAS drive) in **_.xlsx_** form. Once all respondents have completed their survey, the files (with **_.xlsx_** extension) are then swept together into one processed data file, which undergoes a cleansing process. 
+
+## Survey 
+
+This is where the user will populate their skill scores. It is important to ensure consistency of the column headings, and these should not be changed by the user. The information populated in each column can be interpreted as follows;
+
+* Scale - As populated in the **README** tab by the respondent 
+* Role - As populated in the **README** tab by the respondent 
+* Team - As populated in the **README** tab by the respondent 
+* High Level Skill (category) - This is the top level of the skills hierarchy, which can be defined by the business users, e.g. Soft skills is a high level skill category 
+* Specific skill - Is the bottom level of the skills hierarchy, which can be defined by the business users (more details to follow)
+* Skill rank (0 as default, 1-4) - The current score, to be defined by the respondent using the dropdown list as their current skill rank (today) for the listed skill 
+* Skill rank needed in future - The future score, to be defined by the respondent using the dropdown list as their future skill rank (two year time horizon the meet the needs of the business) for the listed skill
+
+### List of Skills 
+
+This is to be defined by the business. The approach taken by DSD was to come up with a list of skills, where each skill was <u>necessary</u> for the business to deliver its outputs and meet its strategic goals. The aim was to avoid skills that were not directly relevant to the business or too 'granular' e.g. specific knowledge of datasets. A list of skills was obtained via focus group discussions with each team within the division, which was guided by the pre-defined top level of the skills hierarchy (e.g. Systems). Drop in sessions were also held and business champions deployed to ensure complete coverage across the different areas. The list of skills should be maintained and updated each year in order to reflect the changing landscape, e.g. new systems, analytical tools etc. Please note by adding or removing skills from the list, the ability to look at changes temporally is lost; however it is still possible to conduct a skill gap and skill stock take analysis.  
+
+### Skill ratings 
+
+DSD opted for a five point scale, with 0 meaning the skill level is not applicable to the role. For future collections the approach will be to add an 'N/A' category, and 0 to be defined as zero prior working knowledge of that skill. The definition of each skill rating was given as follows;
+
+0. This skill is not applicable to your role/function 	
+1. You have some, but limited experience using this skill, and can apply it in a simple problem/task when called upon	
+2. You have practical experience using this skill and have applied it to activities or job functions in the past (**practical application**); however there is still room for capacity development and improvement 	
+3. You have strong and experience of using this particular skill and have applied it widely to carry out tasks or job functions (**applied theory**)	
+4. You have expert knowledge of this skill and have had vast experience in its application (**recognized authority**) ,at some point you have received special training 	
+
+Across each skill, respondents are asked to rank themselves currently (skill level today) and forward looking into the future (required skill level in 2 years). The future state was determined by the role in order to meet the business needs, rather than the desires/ambitions of the respondents. Responses were then mediated by managers and the survey was reviewed in a bilateral meeting. Managers took on responsibility in helping to define the 'future state' to ensure consistency across scales and teams, e.g. not every member of a team can be a data scientist. 
+
+Some business users may opt for a different approach. For example, It is possible to predetermine the future state, e.g. across roles or teams the future scores could be held constant. This would ensure consistency across respondents, but perhaps create a new challenge in accurately defining the future needs at a partially aggregated level. 
+
